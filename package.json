@@ -2,8 +2,8 @@
   "name": "js-beat-emitter",
   "version": "2.0.0",
   "description": "A JavaScript/TypeScript library for beat detection and rhythm analysis with timer-based and audio-analysis modes",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -37,8 +37,8 @@
   "devDependencies": {
     "@types/jest": "^29.5.5",
     "@types/node": "^20.5.0",
-    "@typescript-eslint/eslint-plugin": "^6.4.0",
-    "@typescript-eslint/parser": "^6.4.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.47.0",
     "jest": "^29.6.2",
     "jest-environment-jsdom": "^30.0.2",
