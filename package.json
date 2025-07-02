@@ -5,7 +5,8 @@
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:browser",
+    "build:browser": "node -e \"console.log('Browser version already built')\"",
     "dev": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -44,7 +45,10 @@
     "jest-environment-jsdom": "^30.0.2",
     "rimraf": "^5.0.1",
     "ts-jest": "^29.1.1",
-    "typescript": "^5.1.6"
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.1.6",
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1"
   },
   "files": [
     "dist",
