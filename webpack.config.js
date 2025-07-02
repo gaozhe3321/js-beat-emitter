@@ -5,11 +5,11 @@ module.exports = {
   entry: './browser.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'js-beat-emitter.umd.js',
+    filename: 'js-beat-emitter.browser.js',
     library: {
-      name: 'JSBeatEmitter',
+      name: 'BeatEmitter',
       type: 'umd',
-      export: 'default'
+      export: 'BeatEmitter'
     },
     globalObject: 'this'
   },

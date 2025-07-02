@@ -6,7 +6,7 @@
   "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc && npm run build:browser",
-    "build:browser": "node -e \"console.log('Browser version already built')\"",
+    "build:browser": "webpack --mode=production",
     "dev": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
