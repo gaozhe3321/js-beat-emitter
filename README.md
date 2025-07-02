@@ -26,16 +26,19 @@ npm install js-beat-emitter
 ```typescript
 import { BeatEmitter } from 'js-beat-emitter';
 
-// 创建一个120 BPM的节拍发射器
+// 创建一个120 BPM的四拍子节拍发射器
 const beatEvent = new BeatEmitter({
   mode: 'timer-based',
   bpm: 120,
+  beatsPerMeasure: 4, // 四拍子
   intensity: 0.8
 });
 
 // 监听节拍事件
 beatEvent.on('beat', (beatData) => {
-  console.log(`节拍! BPM: ${beatData.bpm}, 强度: ${beatData.intensity}`);
+  const isFirstBeat = beatData.beat === 1;
+  const beatMarker = isFirstBeat ? '🔴' : '⚪';
+  console.log(`${beatMarker} 第${beatData.beat}拍/${beatData.totalBeats}拍 - BPM: ${beatData.bpm}, 强度: ${beatData.intensity}`);
 });
 
 // 监听节奏变化事件
@@ -49,8 +52,36 @@ await beatEvent.start();
 // 动态修改BPM
 beatEvent.setBPM(140);
 
+// 动态修改拍子数（切换到三拍子）
+beatEvent.setBeatsPerMeasure(3);
+
 // 停止节拍器
 beatEvent.stop();
+```
+
+### 不同拍子示例
+
+```typescript
+// 二拍子节拍器
+const twoBeat = new BeatEmitter({
+  mode: 'timer-based',
+  bpm: 100,
+  beatsPerMeasure: 2
+});
+
+// 三拍子节拍器（华尔兹）
+const threeBeat = new BeatEmitter({
+  mode: 'timer-based',
+  bpm: 180,
+  beatsPerMeasure: 3
+});
+
+// 六拍子节拍器
+const sixBeat = new BeatEmitter({
+  mode: 'timer-based',
+  bpm: 120,
+  beatsPerMeasure: 6
+});
 ```
 
 ### 音频分析模式
@@ -90,6 +121,7 @@ new BeatEmitter(options?: BeatEmitterOptions)
 |------|------|--------|------|
 | `mode` | `'timer-based' \| 'audio-analysis'` | `'timer-based'` | 工作模式 |
 | `bpm` | `number` | `120` | 设定的BPM（定时器模式） |
+| `beatsPerMeasure` | `number` | `4` | 每小节拍子数（2=二拍子, 3=三拍子, 4=四拍子, 等） |
 | `intensity` | `number` | `0.8` | 节拍强度（定时器模式） |
 | `threshold` | `number` | `0.1` | 检测阈值（音频分析模式） |
 | `minBpm` | `number` | `60` | 最小BPM（音频分析模式） |
@@ -104,6 +136,10 @@ new BeatEmitter(options?: BeatEmitterOptions)
 | `stop()` | `void` | 停止节拍检测/触发 |
 | `setBPM(bpm: number)` | `void` | 设置BPM（定时器模式） |
 | `getCurrentBPM()` | `number` | 获取当前BPM |
+| `setBeatsPerMeasure(beats: number)` | `void` | 设置每小节拍子数 |
+| `getBeatsPerMeasure()` | `number` | 获取每小节拍子数 |
+| `getCurrentBeat()` | `number` | 获取当前拍子 (1-based) |
+| `resetToFirstBeat()` | `void` | 重置到第一拍 |
 | `getBeatCount()` | `number` | 获取节拍计数 |
 | `resetBeatCount()` | `void` | 重置节拍计数 |
 | `isActive()` | `boolean` | 检查是否正在运行 |
@@ -128,6 +164,8 @@ interface BeatData {
   timestamp: number;    // 时间戳
   intensity: number;    // 强度 (0-1)
   bpm?: number;        // BPM（如果可用）
+  beat: number;        // 当前是第几拍 (1-based)
+  totalBeats: number;  // 总拍子数
 }
 
 interface TempoData {

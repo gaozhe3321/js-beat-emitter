@@ -8,6 +8,10 @@ export interface BeatData {
   intensity: number;
   /** 当前BPM */
   bpm?: number;
+  /** 当前是第几拍 (1-based) */
+  beat: number;
+  /** 总拍子数 */
+  totalBeats: number;
 }
 
 /**
@@ -35,6 +39,8 @@ export interface BeatEmitterOptions {
   mode?: BeatEmitterMode;
   /** 设定的BPM（定时器模式下使用） */
   bpm?: number;
+  /** 拍子数 (例如: 4表示四拍子, 3表示三拍子) */
+  beatsPerMeasure?: number;
   /** 最小BPM（音频分析模式下使用） */
   minBpm?: number;
   /** 最大BPM（音频分析模式下使用） */

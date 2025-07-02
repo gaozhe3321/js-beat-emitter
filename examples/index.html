@@ -176,6 +176,16 @@
                 <label>最大BPM:</label>
                 <input type="number" id="maxBpm" min="30" max="300" value="180">
             </div>
+            <div class="setting-group" id="beatsGroup">
+                <label>拍子数:</label>
+                <select id="beatsPerMeasure">
+                    <option value="2">二拍子 (2/4)</option>
+                    <option value="3">三拍子 (3/4)</option>
+                    <option value="4" selected>四拍子 (4/4)</option>
+                    <option value="6">六拍子 (6/8)</option>
+                    <option value="8">八拍子 (8/8)</option>
+                </select>
+            </div>
         </div>
 
         <div class="controls">
@@ -194,6 +204,10 @@
             <div class="info-box">
                 <h3>置信度</h3>
                 <div id="confidence" class="value">--</div>
+            </div>
+            <div class="info-box">
+                <h3>当前拍子</h3>
+                <div id="currentBeatDisplay" class="value">1/4</div>
             </div>
         </div>
 
@@ -217,11 +231,13 @@
         const status = document.getElementById('status');
         const currentBpm = document.getElementById('currentBpm');
         const confidence = document.getElementById('confidence');
+        const currentBeatDisplay = document.getElementById('currentBeatDisplay');
         const beatIndicator = document.getElementById('beatIndicator');
         const log = document.getElementById('log');
         const modeSelect = document.getElementById('mode');
         const bpmSlider = document.getElementById('bpm');
         const bpmValue = document.getElementById('bpmValue');
+        const beatsPerMeasureSelect = document.getElementById('beatsPerMeasure');
         const intensitySlider = document.getElementById('intensity');
         const intensityValue = document.getElementById('intensityValue');
         const thresholdSlider = document.getElementById('threshold');
@@ -229,6 +245,7 @@
         const minBpmInput = document.getElementById('minBpm');
         const maxBpmInput = document.getElementById('maxBpm');
         const bpmGroup = document.getElementById('bpmGroup');
+        const beatsGroup = document.getElementById('beatsGroup');
         const intensityGroup = document.getElementById('intensityGroup');
         const thresholdGroup = document.getElementById('thresholdGroup');
         const minBpmGroup = document.getElementById('minBpmGroup');
@@ -251,7 +268,8 @@
         function createBeatEmitter() {
             const mode = modeSelect.value;
             const options = {
-                mode: mode
+                mode: mode,
+                beatsPerMeasure: parseInt(beatsPerMeasureSelect.value)
             };
 
             if (mode === 'timer-based') {
@@ -272,12 +290,14 @@
             
             if (mode === 'timer-based') {
                 bpmGroup.style.display = 'block';
+                beatsGroup.style.display = 'block';
                 intensityGroup.style.display = 'block';
                 thresholdGroup.style.display = 'none';
                 minBpmGroup.style.display = 'none';
                 maxBpmGroup.style.display = 'none';
             } else {
                 bpmGroup.style.display = 'none';
+                beatsGroup.style.display = 'block';
                 intensityGroup.style.display = 'none';
                 thresholdGroup.style.display = 'block';
                 minBpmGroup.style.display = 'block';
@@ -318,6 +338,13 @@
 
             minBpmInput.addEventListener('change', updateBeatEmitterOptions);
             maxBpmInput.addEventListener('change', updateBeatEmitterOptions);
+
+            beatsPerMeasureSelect.addEventListener('change', (e) => {
+                if (beatEmitter) {
+                    beatEmitter.setBeatsPerMeasure(parseInt(e.target.value));
+                    updateCurrentBeatDisplay();
+                }
+            });
         }
 
         // 设置BeatEmitter事件监听器
@@ -335,8 +362,13 @@
 
             beatEmitter.on('beat', (beatData) => {
                 beatCount++;
-                flashBeatIndicator();
-                addLogEntry(`节拍 #${beatCount} - 强度: ${beatData.intensity.toFixed(3)} - 时间: ${new Date(beatData.timestamp).toLocaleTimeString()}`, 'beat');
+                const isFirstBeat = beatData.beat === 1;
+                const beatMarker = isFirstBeat ? '🔴' : '⚪';
+                
+                flashBeatIndicator(isFirstBeat);
+                updateCurrentBeatDisplay();
+                
+                addLogEntry(`${beatMarker} 节拍 #${beatCount} - 第${beatData.beat}拍/${beatData.totalBeats}拍 - 强度: ${beatData.intensity.toFixed(3)} - 时间: ${new Date(beatData.timestamp).toLocaleTimeString()}`, 'beat');
             });
 
             beatEmitter.on('tempo', (tempoData) => {
@@ -397,17 +429,37 @@
         }
 
         // 闪烁节拍指示器
-        function flashBeatIndicator() {
+        function flashBeatIndicator(isFirstBeat = false) {
             beatIndicator.classList.add('active');
+            if (isFirstBeat) {
+                beatIndicator.style.backgroundColor = '#dc3545'; // 红色表示第一拍
+                beatIndicator.textContent = '1';
+            } else {
+                beatIndicator.style.backgroundColor = '#28a745'; // 绿色表示其他拍
+                beatIndicator.textContent = '♪';
+            }
+            
             setTimeout(() => {
                 beatIndicator.classList.remove('active');
+                beatIndicator.style.backgroundColor = '';
+                beatIndicator.textContent = '♪';
             }, 100);
+        }
+
+        // 更新当前拍子显示
+        function updateCurrentBeatDisplay() {
+            if (beatEmitter) {
+                const currentBeat = beatEmitter.getCurrentBeat();
+                const totalBeats = beatEmitter.getBeatsPerMeasure();
+                currentBeatDisplay.textContent = `${currentBeat}/${totalBeats}`;
+            }
         }
 
         // 重置显示
         function resetDisplay() {
             currentBpm.textContent = '--';
             confidence.textContent = '--';
+            currentBeatDisplay.textContent = '1/4';
             beatCount = 0;
         }
 

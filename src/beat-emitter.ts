@@ -16,6 +16,7 @@ import {
 const DEFAULT_OPTIONS: Required<BeatEmitterOptions> = {
   mode: 'timer-based',
   bpm: 120,
+  beatsPerMeasure: 4, // 默认四拍子
   minBpm: 60,
   maxBpm: 180,
   windowSize: 1024,
@@ -38,6 +39,7 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
   private energyHistory: number[] = [];
   private readonly energyHistorySize: number = 10;
   private beatCount: number = 0;
+  private currentBeat: number = 1; // 当前拍子 (1-based)
 
   constructor(options: BeatEmitterOptions = {}) {
     super();
@@ -61,6 +63,7 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     try {
       this.isRunning = true;
       this.beatCount = 0;
+      this.currentBeat = 1; // 重置到第一拍
 
       if (this.options.mode === 'audio-analysis') {
         await this.startAudioAnalysisMode();
@@ -109,6 +112,7 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     }
     this.energyHistory = [];
     this.beatCount = 0;
+    this.currentBeat = 1; // 重置到第一拍
     
     this.emit('stopped', undefined);
   }
@@ -154,10 +158,15 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     const beatData: BeatData = {
       timestamp,
       intensity: this.options.intensity,
-      bpm: this.options.bpm
+      bpm: this.options.bpm,
+      beat: this.currentBeat,
+      totalBeats: this.options.beatsPerMeasure
     };
 
     this.emit('beat', beatData);
+
+    // 更新当前拍子
+    this.currentBeat = (this.currentBeat % this.options.beatsPerMeasure) + 1;
   }
 
   /**
@@ -274,10 +283,15 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     const beatData: BeatData = {
       timestamp,
       intensity: Math.min(1, intensity * 10), // 归一化强度
+      beat: this.currentBeat,
+      totalBeats: this.options.beatsPerMeasure,
       ...(bpm > 0 && { bpm })
     };
 
     this.emit('beat', beatData);
+
+    // 更新当前拍子
+    this.currentBeat = (this.currentBeat % this.options.beatsPerMeasure) + 1;
 
     // 如果BPM检测有足够的置信度，发射节奏事件
     if (bpm > 0 && confidence > 0.5 && this.bpmDetector.getBeatCount() >= 4) {
@@ -344,6 +358,7 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
    */
   resetBeatCount(): void {
     this.beatCount = 0;
+    this.currentBeat = 1; // 重置到第一拍
     if (this.bpmDetector) {
       this.bpmDetector.reset();
     }
@@ -381,5 +396,42 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
    */
   getOptions(): Required<BeatEmitterOptions> {
     return { ...this.options };
+  }
+
+  /**
+   * 获取当前拍子 (1-based)
+   */
+  getCurrentBeat(): number {
+    return this.currentBeat;
+  }
+
+  /**
+   * 获取每小节拍子数
+   */
+  getBeatsPerMeasure(): number {
+    return this.options.beatsPerMeasure;
+  }
+
+  /**
+   * 设置每小节拍子数
+   */
+  setBeatsPerMeasure(beatsPerMeasure: number): void {
+    if (beatsPerMeasure <= 0) {
+      throw new Error('Beats per measure must be greater than 0');
+    }
+
+    this.options.beatsPerMeasure = beatsPerMeasure;
+    
+    // 如果当前拍子超过了新的拍子数，重置到第一拍
+    if (this.currentBeat > beatsPerMeasure) {
+      this.currentBeat = 1;
+    }
+  }
+
+  /**
+   * 重置到第一拍
+   */
+  resetToFirstBeat(): void {
+    this.currentBeat = 1;
   }
 }
