@@ -54,6 +54,7 @@
     "dist",
     "src",
     "README.md",
+    "README.cn.md",
     "LICENSE"
   ],
   "dependencies": {
