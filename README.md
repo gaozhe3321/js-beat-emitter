@@ -175,6 +175,56 @@ interface TempoData {
 }
 ```
 
+## 音频功能
+
+库本身不包含音频播放功能，但在 examples 目录中提供了完整的音频集成示例，展示如何使用 Web Audio API 添加节拍声音：
+
+### 音频特性
+
+- **重拍/轻拍区分**: 重拍使用高音调（默认800Hz），轻拍使用低音调（默认400Hz）
+- **可调参数**: 音调频率、音量、音长都可以自定义
+- **音频包络**: 使用渐进音量控制，声音自然柔和
+- **浏览器兼容**: 使用标准 Web Audio API，支持现代浏览器
+
+### 音频集成示例
+
+```javascript
+// 初始化音频上下文
+let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+// 播放节拍声音
+function playBeatSound(isAccent = false) {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // 重拍使用高音调，轻拍使用低音调
+    oscillator.frequency.setValueAtTime(isAccent ? 800 : 400, audioContext.currentTime);
+    oscillator.type = 'sine';
+    
+    // 设置音量包络
+    const now = audioContext.currentTime;
+    const duration = 0.15; // 150ms
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+    
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+}
+
+// 集成到节拍事件
+beatEmitter.on('beat', (beatData) => {
+    const isFirstBeat = beatData.beat === 1;
+    playBeatSound(isFirstBeat); // 重拍为 true，轻拍为 false
+});
+```
+
+查看 `examples/index.html` 和 `examples/audio-test.html` 获取完整的音频集成实现。
+
 ## 使用示例
 
 ### 创建节拍器应用

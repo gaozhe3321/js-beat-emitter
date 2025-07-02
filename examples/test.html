@@ -61,6 +61,26 @@
             font-family: monospace;
             font-size: 12px;
         }
+        .audio-controls {
+            text-align: center;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .audio-controls label {
+            display: inline-block;
+            margin: 0 10px;
+            font-weight: bold;
+        }
+        .audio-controls input[type="range"] {
+            width: 100px;
+            margin: 0 5px;
+        }
+        .audio-controls input[type="checkbox"] {
+            margin: 0 5px;
+        }
     </style>
 </head>
 <body>
@@ -87,6 +107,29 @@
         <div id="beatIndicator" class="beat-indicator">♪</div>
         
         <div id="log" class="log"></div>
+
+        <div class="audio-controls">
+            <h3>音频设置</h3>
+            <label>
+                <input type="checkbox" id="soundEnabled" checked> 启用声音
+            </label>
+            <br><br>
+            <label>
+                重拍音调: <input type="range" id="accentFreq" min="400" max="1200" value="800"> <span id="accentFreqValue">800</span> Hz
+            </label>
+            <br>
+            <label>
+                轻拍音调: <input type="range" id="normalFreq" min="200" max="800" value="400"> <span id="normalFreqValue">400</span> Hz
+            </label>
+            <br>
+            <label>
+                音量: <input type="range" id="volume" min="0" max="100" value="50"> <span id="volumeValue">50</span>%
+            </label>
+            <br>
+            <label>
+                音长: <input type="range" id="duration" min="50" max="500" value="150"> <span id="durationValue">150</span> ms
+            </label>
+        </div>
     </div>
 
     <!-- 引入浏览器版本的库 -->
@@ -94,6 +137,76 @@
     <script>
         console.log('BeatEmitter available:', typeof BeatEmitter !== 'undefined');
         
+        // 音频上下文和配置
+        let audioContext = null;
+        let audioSettings = {
+            enabled: true,
+            accentFreq: 800,
+            normalFreq: 400,
+            volume: 0.5,
+            duration: 150
+        };
+
+        // 初始化音频上下文
+        function initAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('Audio context initialized');
+                } catch (error) {
+                    console.error('Failed to initialize audio context:', error);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // 播放节拍声音
+        function playBeatSound(isAccent = false) {
+            if (!audioSettings.enabled || !initAudioContext()) {
+                return;
+            }
+
+            try {
+                // 创建振荡器
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                // 连接音频节点
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                // 设置频率（重拍使用高音调，轻拍使用低音调）
+                const frequency = isAccent ? audioSettings.accentFreq : audioSettings.normalFreq;
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                oscillator.type = 'sine'; // 使用正弦波，声音更柔和
+
+                // 设置音量包络（快速上升，然后渐弱）
+                const now = audioContext.currentTime;
+                const duration = audioSettings.duration / 1000; // 转换为秒
+                
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(audioSettings.volume, now + 0.01); // 快速上升
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration); // 渐弱
+
+                // 播放声音
+                oscillator.start(now);
+                oscillator.stop(now + duration);
+
+            } catch (error) {
+                console.error('Failed to play beat sound:', error);
+            }
+        }
+
+        // 更新音频设置的函数
+        function updateAudioSettings() {
+            audioSettings.enabled = document.getElementById('soundEnabled').checked;
+            audioSettings.accentFreq = parseInt(document.getElementById('accentFreq').value);
+            audioSettings.normalFreq = parseInt(document.getElementById('normalFreq').value);
+            audioSettings.volume = parseInt(document.getElementById('volume').value) / 100;
+            audioSettings.duration = parseInt(document.getElementById('duration').value);
+        }
+
         let beatEmitter = null;
         let beatCount = 0;
 
@@ -107,6 +220,17 @@
         const currentBeat = document.getElementById('currentBeat');
         const beatIndicator = document.getElementById('beatIndicator');
         const log = document.getElementById('log');
+        
+        // 音频控件DOM元素
+        const soundEnabled = document.getElementById('soundEnabled');
+        const accentFreq = document.getElementById('accentFreq');
+        const accentFreqValue = document.getElementById('accentFreqValue');
+        const normalFreq = document.getElementById('normalFreq');
+        const normalFreqValue = document.getElementById('normalFreqValue');
+        const volume = document.getElementById('volume');
+        const volumeValue = document.getElementById('volumeValue');
+        const duration = document.getElementById('duration');
+        const durationValue = document.getElementById('durationValue');
 
         function addLog(message) {
             const time = new Date().toLocaleTimeString();
@@ -125,6 +249,11 @@
         }
 
         function flashBeat(isFirstBeat) {
+            // 播放相应的声音
+            updateAudioSettings();
+            playBeatSound(isFirstBeat);
+            
+            // 视觉效果
             beatIndicator.classList.add('active');
             if (isFirstBeat) {
                 beatIndicator.style.backgroundColor = '#dc3545';
@@ -155,6 +284,7 @@
                 updateBeatDisplay();
                 
                 addLog(`${marker} 节拍 #${beatCount} - 第${beatData.beat}拍/${beatData.totalBeats}拍 - 强度: ${beatData.intensity}`);
+                playBeatSound(isFirstBeat); // 播放声音
             });
 
             beatEmitter.on('tempo', (tempoData) => {
@@ -207,6 +337,70 @@
             bpmValue.textContent = e.target.value;
             if (beatEmitter) {
                 beatEmitter.setBPM(parseInt(e.target.value));
+            }
+        });
+
+        volumeControl.addEventListener('input', (e) => {
+            const volume = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setVolume(volume);
+                addLog(`🔊 音量设置为 ${volume}`);
+            }
+        });
+
+        panControl.addEventListener('input', (e) => {
+            const pan = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setPan(pan);
+                addLog(`🎚️ 平衡设置为 ${pan}`);
+            }
+        });
+
+        bassBoost.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            if (beatEmitter) {
+                beatEmitter.setBassBoost(isChecked);
+                addLog(`🎶 低音增强 ${isChecked ? '已开启' : '已关闭'}`);
+            }
+        });
+
+        soundEnabled.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            if (beatEmitter) {
+                beatEmitter.setSoundEnabled(isChecked);
+                addLog(`🔊 声音 ${isChecked ? '已启用' : '已禁用'}`);
+            }
+        });
+
+        accentFreq.addEventListener('input', (e) => {
+            const freq = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setAccentFrequency(freq);
+                addLog(`🔔 重拍音调设置为 ${freq} Hz`);
+            }
+        });
+
+        normalFreq.addEventListener('input', (e) => {
+            const freq = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setNormalFrequency(freq);
+                addLog(`🔉 轻拍音调设置为 ${freq} Hz`);
+            }
+        });
+
+        volume.addEventListener('input', (e) => {
+            const vol = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setVolume(vol / 100);
+                addLog(`🔊 音量设置为 ${vol}%`);
+            }
+        });
+
+        duration.addEventListener('input', (e) => {
+            const dur = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setDuration(dur);
+                addLog(`⏱️ 音长设置为 ${dur} ms`);
             }
         });
 

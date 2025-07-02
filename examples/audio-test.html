@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS Beat Emitter 音频测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .audio-test {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .beat-demo {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .beat-button {
+            padding: 20px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+        }
+        .accent-beat {
+            background-color: #dc3545;
+        }
+        .normal-beat {
+            background-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JS Beat Emitter 音频功能测试</h1>
+        
+        <div class="audio-test">
+            <h3>音频功能测试</h3>
+            <p>点击下方按钮测试重拍和轻拍的声音效果：</p>
+            
+            <div class="beat-demo">
+                <button id="accentBeat" class="beat-button accent-beat">🔴 重拍 (高音调)</button>
+                <button id="normalBeat" class="beat-button normal-beat">⚪ 轻拍 (低音调)</button>
+            </div>
+            
+            <div>
+                <button id="startPattern">开始四拍子节拍</button>
+                <button id="stopPattern">停止节拍</button>
+            </div>
+            
+            <div id="status" style="margin-top: 20px; font-weight: bold;">点击任意按钮开始测试</div>
+        </div>
+    </div>
+
+    <script>
+        // 音频上下文和配置
+        let audioContext = null;
+        let patternInterval = null;
+        let currentBeat = 1;
+        
+        const audioSettings = {
+            accentFreq: 800,
+            normalFreq: 400,
+            volume: 0.5,
+            duration: 150
+        };
+
+        // DOM 元素
+        const accentBeatBtn = document.getElementById('accentBeat');
+        const normalBeatBtn = document.getElementById('normalBeat');
+        const startPatternBtn = document.getElementById('startPattern');
+        const stopPatternBtn = document.getElementById('stopPattern');
+        const status = document.getElementById('status');
+
+        // 初始化音频上下文
+        function initAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    status.textContent = '🎵 音频上下文已初始化，可以播放声音';
+                    return true;
+                } catch (error) {
+                    console.error('Failed to initialize audio context:', error);
+                    status.textContent = '❌ 音频初始化失败: ' + error.message;
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // 播放节拍声音
+        function playBeatSound(isAccent = false) {
+            if (!audioContext) return;
+
+            try {
+                // 创建振荡器
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                // 连接音频节点
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                // 设置频率
+                const frequency = isAccent ? audioSettings.accentFreq : audioSettings.normalFreq;
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                oscillator.type = 'sine';
+
+                // 设置音量包络
+                const now = audioContext.currentTime;
+                const duration = audioSettings.duration / 1000;
+                
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(audioSettings.volume, now + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+                // 播放声音
+                oscillator.start(now);
+                oscillator.stop(now + duration);
+
+                status.textContent = `🎵 播放${isAccent ? '重拍' : '轻拍'} (${frequency}Hz)`;
+
+            } catch (error) {
+                console.error('Failed to play beat sound:', error);
+                status.textContent = '❌ 播放失败: ' + error.message;
+            }
+        }
+
+        // 开始四拍子节拍模式
+        function startBeatPattern() {
+            if (patternInterval) return;
+            
+            currentBeat = 1;
+            status.textContent = '🎼 开始四拍子节拍 - 第1拍 (重拍)';
+            
+            // 立即播放第一拍
+            playBeatSound(true);
+            
+            // 设置定时器
+            patternInterval = setInterval(() => {
+                currentBeat++;
+                if (currentBeat > 4) {
+                    currentBeat = 1;
+                }
+                
+                const isAccent = currentBeat === 1;
+                playBeatSound(isAccent);
+                
+                status.textContent = `🎼 四拍子节拍 - 第${currentBeat}拍 ${isAccent ? '(重拍)' : '(轻拍)'}`;
+            }, 500); // 每拍500ms，相当于120 BPM
+        }
+
+        // 停止节拍模式
+        function stopBeatPattern() {
+            if (patternInterval) {
+                clearInterval(patternInterval);
+                patternInterval = null;
+                status.textContent = '⏹️ 节拍已停止';
+            }
+        }
+
+        // 事件监听器
+        accentBeatBtn.addEventListener('click', () => {
+            if (!audioContext) initAudioContext();
+            playBeatSound(true);
+        });
+
+        normalBeatBtn.addEventListener('click', () => {
+            if (!audioContext) initAudioContext();
+            playBeatSound(false);
+        });
+
+        startPatternBtn.addEventListener('click', () => {
+            if (!audioContext) initAudioContext();
+            startBeatPattern();
+        });
+
+        stopPatternBtn.addEventListener('click', stopBeatPattern);
+    </script>
+</body>
+</html>

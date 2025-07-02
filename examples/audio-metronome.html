@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS Beat Emitter 音频测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .beat-indicator {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 20px auto;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            transition: all 0.1s ease;
+        }
+        .beat-indicator.active {
+            transform: scale(1.2);
+        }
+        .beat-indicator.accent {
+            background-color: #dc3545;
+            color: white;
+        }
+        .beat-indicator.normal {
+            background-color: #28a745;
+            color: white;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .control-group {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .control-group h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .control-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .control-item label {
+            min-width: 80px;
+            font-weight: bold;
+        }
+        .control-item input[type="range"] {
+            flex: 1;
+        }
+        .control-item input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        .value-display {
+            min-width: 60px;
+            text-align: right;
+            font-family: monospace;
+        }
+        .info {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .audio-status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .audio-status.enabled {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .audio-status.disabled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 JS Beat Emitter 音频节拍器</h1>
+        
+        <div class="info">
+            <button id="startBtn">▶️ 开始</button>
+            <button id="stopBtn" disabled>⏹️ 停止</button>
+            <button id="clearBtn">🗑️ 清空日志</button>
+        </div>
+
+        <div id="audioStatus" class="audio-status disabled">
+            点击"开始"按钮激活音频（需要用户交互）
+        </div>
+
+        <div id="currentBeat" class="info">当前拍子: 1/4</div>
+        <div id="beatIndicator" class="beat-indicator">♪</div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <h3>🎼 节拍设置</h3>
+                <div class="control-item">
+                    <label>拍子数:</label>
+                    <select id="beatsSelect">
+                        <option value="2">二拍子 (2/4)</option>
+                        <option value="3">三拍子 (3/4)</option>
+                        <option value="4" selected>四拍子 (4/4)</option>
+                        <option value="6">六拍子 (6/8)</option>
+                        <option value="8">八拍子 (8/8)</option>
+                    </select>
+                </div>
+                <div class="control-item">
+                    <label>BPM:</label>
+                    <input type="range" id="bpmSlider" min="60" max="200" value="120">
+                    <span id="bpmValue" class="value-display">120</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>🔊 音频设置</h3>
+                <div class="control-item">
+                    <input type="checkbox" id="soundEnabled" checked>
+                    <label>启用声音</label>
+                </div>
+                <div class="control-item">
+                    <label>重拍音调:</label>
+                    <input type="range" id="accentFreq" min="400" max="1200" value="800">
+                    <span id="accentFreqValue" class="value-display">800 Hz</span>
+                </div>
+                <div class="control-item">
+                    <label>轻拍音调:</label>
+                    <input type="range" id="normalFreq" min="200" max="800" value="400">
+                    <span id="normalFreqValue" class="value-display">400 Hz</span>
+                </div>
+                <div class="control-item">
+                    <label>音量:</label>
+                    <input type="range" id="volume" min="0" max="100" value="50">
+                    <span id="volumeValue" class="value-display">50%</span>
+                </div>
+                <div class="control-item">
+                    <label>音长:</label>
+                    <input type="range" id="duration" min="50" max="500" value="150">
+                    <span id="durationValue" class="value-display">150 ms</span>
+                </div>
+            </div>
+        </div>
+        
+        <h3>📋 事件日志</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- 引入浏览器版本的库 -->
+    <script src="../dist/js-beat-emitter.browser.js"></script>
+    <script>
+        console.log('BeatEmitter available:', typeof BeatEmitter !== 'undefined');
+        
+        // 音频上下文和配置
+        let audioContext = null;
+        let audioSettings = {
+            enabled: true,
+            accentFreq: 800,
+            normalFreq: 400,
+            volume: 0.5,
+            duration: 150
+        };
+
+        let beatEmitter = null;
+        let beatCount = 0;
+
+        // DOM 元素
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const beatsSelect = document.getElementById('beatsSelect');
+        const bpmSlider = document.getElementById('bpmSlider');
+        const bpmValue = document.getElementById('bpmValue');
+        const currentBeat = document.getElementById('currentBeat');
+        const beatIndicator = document.getElementById('beatIndicator');
+        const log = document.getElementById('log');
+        const audioStatus = document.getElementById('audioStatus');
+        
+        // 音频控件DOM元素
+        const soundEnabled = document.getElementById('soundEnabled');
+        const accentFreq = document.getElementById('accentFreq');
+        const accentFreqValue = document.getElementById('accentFreqValue');
+        const normalFreq = document.getElementById('normalFreq');
+        const normalFreqValue = document.getElementById('normalFreqValue');
+        const volume = document.getElementById('volume');
+        const volumeValue = document.getElementById('volumeValue');
+        const duration = document.getElementById('duration');
+        const durationValue = document.getElementById('durationValue');
+
+        // 初始化音频上下文
+        function initAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    updateAudioStatus();
+                    addLog('🎤 音频上下文已初始化');
+                    return true;
+                } catch (error) {
+                    console.error('Failed to initialize audio context:', error);
+                    addLog('❌ 音频上下文初始化失败: ' + error.message);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // 更新音频状态显示
+        function updateAudioStatus() {
+            if (audioContext && audioContext.state === 'running') {
+                audioStatus.textContent = '🎵 音频已激活 - 可以播放节拍声音';
+                audioStatus.className = 'audio-status enabled';
+            } else if (audioContext && audioContext.state === 'suspended') {
+                audioStatus.textContent = '⏸️ 音频已暂停 - 点击开始按钮激活';
+                audioStatus.className = 'audio-status disabled';
+            } else {
+                audioStatus.textContent = '🔇 音频未激活 - 需要用户交互';
+                audioStatus.className = 'audio-status disabled';
+            }
+        }
+
+        // 播放节拍声音
+        function playBeatSound(isAccent = false) {
+            if (!audioSettings.enabled || !audioContext) {
+                return;
+            }
+
+            try {
+                // 如果音频上下文被暂停，尝试恢复
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        updateAudioStatus();
+                    });
+                }
+
+                // 创建振荡器
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                // 连接音频节点
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                // 设置频率（重拍使用高音调，轻拍使用低音调）
+                const frequency = isAccent ? audioSettings.accentFreq : audioSettings.normalFreq;
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                oscillator.type = 'sine'; // 使用正弦波，声音更柔和
+
+                // 设置音量包络（快速上升，然后渐弱）
+                const now = audioContext.currentTime;
+                const duration = audioSettings.duration / 1000; // 转换为秒
+                
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(audioSettings.volume, now + 0.01); // 快速上升
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration); // 渐弱
+
+                // 播放声音
+                oscillator.start(now);
+                oscillator.stop(now + duration);
+
+            } catch (error) {
+                console.error('Failed to play beat sound:', error);
+                addLog('❌ 播放声音失败: ' + error.message);
+            }
+        }
+
+        // 更新音频设置
+        function updateAudioSettings() {
+            audioSettings.enabled = soundEnabled.checked;
+            audioSettings.accentFreq = parseInt(accentFreq.value);
+            audioSettings.normalFreq = parseInt(normalFreq.value);
+            audioSettings.volume = parseInt(volume.value) / 100;
+            audioSettings.duration = parseInt(duration.value);
+        }
+
+        function addLog(message) {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.textContent = `[${time}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateBeatDisplay() {
+            if (beatEmitter) {
+                const current = beatEmitter.getCurrentBeat();
+                const total = beatEmitter.getBeatsPerMeasure();
+                currentBeat.textContent = `当前拍子: ${current}/${total}`;
+            }
+        }
+
+        function flashBeat(isFirstBeat) {
+            // 播放相应的声音
+            updateAudioSettings();
+            playBeatSound(isFirstBeat);
+            
+            // 视觉效果
+            beatIndicator.classList.add('active');
+            if (isFirstBeat) {
+                beatIndicator.classList.add('accent');
+                beatIndicator.classList.remove('normal');
+                beatIndicator.textContent = '1';
+            } else {
+                beatIndicator.classList.add('normal');
+                beatIndicator.classList.remove('accent');
+                beatIndicator.textContent = '♪';
+            }
+            
+            setTimeout(() => {
+                beatIndicator.classList.remove('active', 'accent', 'normal');
+                beatIndicator.textContent = '♪';
+            }, 150);
+        }
+
+        function createBeatEmitter() {
+            beatEmitter = new BeatEmitter({
+                mode: 'timer-based',
+                bpm: parseInt(bpmSlider.value),
+                beatsPerMeasure: parseInt(beatsSelect.value),
+                intensity: 0.8
+            });
+
+            beatEmitter.on('beat', (beatData) => {
+                beatCount++;
+                const isFirstBeat = beatData.beat === 1;
+                const marker = isFirstBeat ? '🔴' : '⚪';
+                const beatType = isFirstBeat ? '重拍' : '轻拍';
+                
+                flashBeat(isFirstBeat);
+                updateBeatDisplay();
+                
+                addLog(`${marker} ${beatType} #${beatCount} - 第${beatData.beat}拍/${beatData.totalBeats}拍 - 强度: ${beatData.intensity.toFixed(2)}`);
+            });
+
+            beatEmitter.on('tempo', (tempoData) => {
+                addLog(`🎼 节奏: ${tempoData.bpm} BPM (置信度: ${(tempoData.confidence * 100).toFixed(1)}%)`);
+            });
+
+            beatEmitter.on('started', () => {
+                addLog('✅ 节拍器已启动');
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            });
+
+            beatEmitter.on('stopped', () => {
+                addLog('⏹️ 节拍器已停止');
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                beatCount = 0;
+                updateBeatDisplay();
+            });
+
+            beatEmitter.on('error', (error) => {
+                addLog(`❌ 错误: ${error.message}`);
+            });
+        }
+
+        // 事件监听器
+        startBtn.addEventListener('click', async () => {
+            // 初始化音频上下文（需要用户交互）
+            if (!audioContext) {
+                initAudioContext();
+            }
+            
+            // 恢复音频上下文（如果被暂停）
+            if (audioContext && audioContext.state === 'suspended') {
+                await audioContext.resume();
+                updateAudioStatus();
+            }
+            
+            if (!beatEmitter) createBeatEmitter();
+            beatEmitter.start();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (beatEmitter) beatEmitter.stop();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            log.innerHTML = '';
+            beatCount = 0;
+        });
+
+        beatsSelect.addEventListener('change', (e) => {
+            if (beatEmitter) {
+                beatEmitter.setBeatsPerMeasure(parseInt(e.target.value));
+                updateBeatDisplay();
+                addLog(`🔄 切换到 ${e.target.selectedOptions[0].text}`);
+            }
+        });
+
+        bpmSlider.addEventListener('input', (e) => {
+            bpmValue.textContent = e.target.value;
+            if (beatEmitter) {
+                beatEmitter.setBPM(parseInt(e.target.value));
+                addLog(`🎵 BPM 设置为 ${e.target.value}`);
+            }
+        });
+
+        // 音频控件事件监听器
+        soundEnabled.addEventListener('change', (e) => {
+            updateAudioSettings();
+            addLog(`🔊 声音 ${e.target.checked ? '已启用' : '已禁用'}`);
+        });
+
+        accentFreq.addEventListener('input', (e) => {
+            accentFreqValue.textContent = e.target.value + ' Hz';
+            updateAudioSettings();
+        });
+
+        normalFreq.addEventListener('input', (e) => {
+            normalFreqValue.textContent = e.target.value + ' Hz';
+            updateAudioSettings();
+        });
+
+        volume.addEventListener('input', (e) => {
+            volumeValue.textContent = e.target.value + '%';
+            updateAudioSettings();
+        });
+
+        duration.addEventListener('input', (e) => {
+            durationValue.textContent = e.target.value + ' ms';
+            updateAudioSettings();
+        });
+
+        // 初始化
+        updateBeatDisplay();
+        updateAudioStatus();
+        addLog('🎵 JS Beat Emitter 音频节拍器已加载');
+        addLog('💡 提示: 点击"开始"按钮激活音频功能');
+    </script>
+</body>
+</html>

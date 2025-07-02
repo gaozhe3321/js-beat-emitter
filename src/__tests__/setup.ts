@@ -18,6 +18,13 @@ const mockAudioContext = {
   close: jest.fn(),
 };
 
+// 这是一个配置文件，不包含测试
+describe('setup', () => {
+  it('should setup testing environment', () => {
+    expect(true).toBe(true);
+  });
+});
+
 const mockGetUserMedia = jest.fn(() => 
   Promise.resolve({
     getTracks: () => [],

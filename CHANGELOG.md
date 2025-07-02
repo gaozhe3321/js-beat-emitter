@@ -13,12 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 在 BeatData 中添加 `beat` 和 `totalBeats` 字段标记当前拍子
   - 新增 `setBeatsPerMeasure()`, `getBeatsPerMeasure()`, `getCurrentBeat()`, `resetToFirstBeat()` 方法
   - 第一拍会有特殊标记，便于可视化区分
+- **音频功能集成示例**: examples 中添加完整的节拍声音功能
+  - 重拍/轻拍音色区分（重拍高音调，轻拍低音调）
+  - 可调节音调频率、音量、音长等参数
+  - 使用 Web Audio API 实现高质量音频效果
+  - 音频包络控制，声音自然柔和
 - 拍子功能演示示例 (`beat-counting-demo.ts`)
-- 更新HTML演示页面支持拍子数选择和显示
+- 音频测试页面 (`examples/audio-test.html`) 用于单独测试音频功能
+- 更新主演示页面 (`examples/index.html`) 集成完整音频控件
 
 ### Changed
 - **BREAKING**: BeatData 接口增加了 `beat` 和 `totalBeats` 必需字段
 - 默认配置增加 `beatsPerMeasure: 4`
+- 优化演示页面UI，增加音频状态指示器
+- 增强日志显示，更好地区分重拍和轻拍事件
 
 ## [2.0.0] - 2025-07-02
 
