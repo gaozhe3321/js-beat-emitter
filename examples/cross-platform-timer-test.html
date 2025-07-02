@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨平台精准定时器测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .timing-log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .accuracy-good { color: #28a745; }
+        .accuracy-warning { color: #ffc107; }
+        .accuracy-error { color: #dc3545; }
+        .environment-info {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>跨平台精准定时器测试</h1>
+        
+        <div class="environment-info">
+            <h3>🌐 环境信息</h3>
+            <div id="envInfo">检测中...</div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn">开始测试 (120 BPM)</button>
+            <button id="stopBtn" disabled>停止测试</button>
+            <button id="clearBtn">清除日志</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div id="beatCount" class="stat-value">0</div>
+                <div class="stat-label">节拍总数</div>
+            </div>
+            <div class="stat-box">
+                <div id="avgAccuracy" class="stat-value">0ms</div>
+                <div class="stat-label">平均误差</div>
+            </div>
+            <div class="stat-box">
+                <div id="maxError" class="stat-value">0ms</div>
+                <div class="stat-label">最大误差</div>
+            </div>
+        </div>
+        
+        <div id="timingLog" class="timing-log"></div>
+    </div>
+
+    <script src="../dist/js-beat-emitter.browser.js"></script>
+    <script>
+        let beatEmitter = null;
+        let timingData = [];
+        let expectedInterval = 500; // 120 BPM = 500ms interval
+        let startTime = 0;
+
+        // DOM 元素
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const beatCount = document.getElementById('beatCount');
+        const avgAccuracy = document.getElementById('avgAccuracy');
+        const maxError = document.getElementById('maxError');
+        const timingLog = document.getElementById('timingLog');
+        const envInfo = document.getElementById('envInfo');
+
+        // 高精度时间函数
+        function getHighResTime() {
+            if (typeof performance !== 'undefined' && performance.now) {
+                return performance.now();
+            }
+            return Date.now();
+        }
+
+        // 显示环境信息
+        function showEnvironmentInfo() {
+            const info = [];
+            
+            // 浏览器信息
+            info.push(`浏览器: ${navigator.userAgent.split(' ')[0]}`);
+            
+            // 时间精度
+            if (typeof performance !== 'undefined' && performance.now) {
+                info.push('⏱️ 时间精度: performance.now() (亚毫秒级)');
+            } else {
+                info.push('⏱️ 时间精度: Date.now() (毫秒级)');
+            }
+            
+            // requestAnimationFrame 支持
+            if (typeof requestAnimationFrame !== 'undefined') {
+                info.push('🎬 动画帧: 支持 requestAnimationFrame');
+            } else {
+                info.push('🎬 动画帧: 不支持 requestAnimationFrame');
+            }
+            
+            // setTimeout 精度测试
+            const testStart = getHighResTime();
+            setTimeout(() => {
+                const testEnd = getHighResTime();
+                const actualDelay = testEnd - testStart;
+                info.push(`⏰ setTimeout(1ms) 实际延迟: ${actualDelay.toFixed(2)}ms`);
+                envInfo.innerHTML = info.join('<br>');
+            }, 1);
+            
+            envInfo.innerHTML = info.slice(0, -1).join('<br>') + '<br>⏰ 测试 setTimeout 精度中...';
+        }
+
+        // 开始测试
+        startBtn.addEventListener('click', () => {
+            timingData = [];
+            
+            beatEmitter = new BeatEmitter({
+                mode: 'timer-based',
+                bpm: 120,
+                beatsPerMeasure: 4
+            });
+            
+            startTime = getHighResTime();
+            
+            beatEmitter.on('beat', handleBeat);
+            beatEmitter.on('started', () => {
+                addLog('✅ 精准定时器已启动', 'info');
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            });
+            
+            beatEmitter.on('stopped', () => {
+                addLog('⏹️ 定时器已停止', 'info');
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                showFinalStats();
+            });
+            
+            beatEmitter.start();
+        });
+
+        // 停止测试
+        stopBtn.addEventListener('click', () => {
+            if (beatEmitter) {
+                beatEmitter.stop();
+            }
+        });
+
+        // 清除日志
+        clearBtn.addEventListener('click', () => {
+            timingLog.innerHTML = '';
+            timingData = [];
+            updateStats();
+        });
+
+        function handleBeat(beatData) {
+            const currentTime = getHighResTime();
+            const expectedTime = startTime + (timingData.length * expectedInterval);
+            const actualTime = currentTime;
+            const error = actualTime - expectedTime;
+            
+            timingData.push({
+                expected: expectedTime,
+                actual: actualTime,
+                error: error,
+                beat: beatData.beat
+            });
+            
+            // 分类误差
+            let errorClass = 'accuracy-good';
+            if (Math.abs(error) > 2) errorClass = 'accuracy-warning';
+            if (Math.abs(error) > 5) errorClass = 'accuracy-error';
+            
+            const beatMarker = beatData.beat === 1 ? '🔴' : '⚪';
+            addLog(
+                `${beatMarker} 节拍 ${timingData.length} (${beatData.beat}/${beatData.totalBeats}) - 误差: ${error.toFixed(2)}ms`,
+                errorClass
+            );
+            
+            updateStats();
+        }
+
+        function updateStats() {
+            beatCount.textContent = timingData.length;
+            
+            if (timingData.length > 0) {
+                const errors = timingData.map(d => Math.abs(d.error));
+                const avgError = errors.reduce((sum, e) => sum + e, 0) / errors.length;
+                const maxErr = Math.max(...errors);
+                
+                avgAccuracy.textContent = `${avgError.toFixed(2)}ms`;
+                maxError.textContent = `${maxErr.toFixed(2)}ms`;
+                
+                // 根据精度着色
+                avgAccuracy.className = 'stat-value ' + (avgError < 2 ? 'accuracy-good' : avgError < 5 ? 'accuracy-warning' : 'accuracy-error');
+                maxError.className = 'stat-value ' + (maxErr < 5 ? 'accuracy-good' : maxErr < 10 ? 'accuracy-warning' : 'accuracy-error');
+            } else {
+                avgAccuracy.textContent = '0ms';
+                maxError.textContent = '0ms';
+                avgAccuracy.className = 'stat-value';
+                maxError.className = 'stat-value';
+            }
+        }
+
+        function showFinalStats() {
+            if (timingData.length < 2) return;
+            
+            const errors = timingData.map(d => Math.abs(d.error));
+            const avgError = errors.reduce((sum, e) => sum + e, 0) / errors.length;
+            const maxErr = Math.max(...errors);
+            const minErr = Math.min(...errors);
+            
+            // 计算标准偏差
+            const variance = errors.reduce((sum, e) => sum + Math.pow(e - avgError, 2), 0) / errors.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // 累积误差
+            const lastBeat = timingData[timingData.length - 1];
+            const totalDrift = lastBeat.error;
+            
+            addLog('📊 === 最终统计 ===', 'info');
+            addLog(`📈 平均误差: ${avgError.toFixed(2)}ms`, avgError < 2 ? 'accuracy-good' : 'accuracy-warning');
+            addLog(`📈 最大误差: ${maxErr.toFixed(2)}ms`, 'info');
+            addLog(`📈 最小误差: ${minErr.toFixed(2)}ms`, 'info');
+            addLog(`📈 标准偏差: ${stdDev.toFixed(2)}ms`, 'info');
+            addLog(`📈 累积偏移: ${totalDrift.toFixed(2)}ms`, Math.abs(totalDrift) < 50 ? 'accuracy-good' : 'accuracy-warning');
+            
+            // 精度评价
+            if (avgError < 2) {
+                addLog('🎯 精度评价: 优秀', 'accuracy-good');
+            } else if (avgError < 5) {
+                addLog('👍 精度评价: 良好', 'accuracy-warning');
+            } else {
+                addLog('⚠️ 精度评价: 一般', 'accuracy-error');
+            }
+        }
+
+        function addLog(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${time}] ${message}`;
+            timingLog.appendChild(entry);
+            timingLog.scrollTop = timingLog.scrollHeight;
+        }
+
+        // 初始化
+        updateStats();
+        showEnvironmentInfo();
+        addLog('💡 新的跨平台精准定时器 - 使用 setTimeout 递归实现', 'info');
+        addLog('🎯 优势: 浏览器和 Node.js 环境通用', 'info');
+        addLog('⚡ 特性: 动态检查间隔，高精度时间戳，避免累积误差', 'info');
+    </script>
+</body>
+</html>

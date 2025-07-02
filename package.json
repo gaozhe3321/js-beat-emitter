@@ -1,6 +1,6 @@
 {
   "name": "js-beat-emitter",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "A JavaScript/TypeScript library for beat detection and rhythm analysis with timer-based and audio-analysis modes",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",

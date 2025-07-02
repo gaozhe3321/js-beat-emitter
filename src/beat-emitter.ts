@@ -40,6 +40,11 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
   private readonly energyHistorySize: number = 10;
   private beatCount: number = 0;
   private currentBeat: number = 1; // 当前拍子 (1-based)
+  
+  // 精准定时器相关
+  private timerStartTime: number = 0;
+  private nextBeatTime: number = 0;
+  private beatInterval: number = 0;
 
   constructor(options: BeatEmitterOptions = {}) {
     super();
@@ -91,7 +96,7 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     
     // 清理定时器
     if (this.timerId !== null) {
-      clearInterval(this.timerId);
+      clearTimeout(this.timerId);
       this.timerId = null;
     }
 
@@ -113,6 +118,8 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     this.energyHistory = [];
     this.beatCount = 0;
     this.currentBeat = 1; // 重置到第一拍
+    this.timerStartTime = 0;
+    this.nextBeatTime = 0;
     
     this.emit('stopped', undefined);
   }
@@ -126,18 +133,18 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
     }
 
     // 计算间隔时间 (毫秒)
-    const interval = 60000 / this.options.bpm;
+    this.beatInterval = 60000 / this.options.bpm;
+    
+    // 使用高精度时间戳
+    this.timerStartTime = this.getHighResolutionTime();
+    this.nextBeatTime = this.timerStartTime;
 
     // 立即触发第一个节拍
     this.triggerBeat();
+    this.nextBeatTime += this.beatInterval;
 
-    // 设置定时器 - 兼容Node.js和浏览器环境
-    const setIntervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval;
-    this.timerId = setIntervalFn(() => {
-      if (this.isRunning) {
-        this.triggerBeat();
-      }
-    }, interval) as unknown as number;
+    // 启动精准定时循环
+    this.startPrecisionTimer();
 
     // 发射初始节奏事件
     const tempoData: TempoData = {
@@ -146,6 +153,66 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
       timestamp: Date.now()
     };
     this.emit('tempo', tempoData);
+  }
+
+  /**
+   * 获取高精度时间戳
+   */
+  private getHighResolutionTime(): number {
+    // 浏览器环境优先使用 performance.now()
+    if (typeof performance !== 'undefined' && performance.now) {
+      return performance.now();
+    }
+    // Node.js 环境使用 process.hrtime.bigint() 转换为毫秒
+    if (typeof process !== 'undefined' && process.hrtime && process.hrtime.bigint) {
+      return Number(process.hrtime.bigint()) / 1000000;
+    }
+    // 回退到 Date.now()
+    return Date.now();
+  }
+
+  /**
+   * 启动精准定时器循环
+   */
+  private startPrecisionTimer(): void {
+    const timerLoop = (): void => {
+      if (!this.isRunning) {
+        return;
+      }
+
+      const currentTime = this.getHighResolutionTime();
+      
+      // 检查是否到了下一个节拍时间
+      if (currentTime >= this.nextBeatTime) {
+        this.triggerBeat();
+        
+        // 计算下一个节拍时间，避免累积误差
+        this.nextBeatTime += this.beatInterval;
+        
+        // 如果由于某种原因落后太多，重新同步
+        if (currentTime - this.nextBeatTime > this.beatInterval) {
+          this.nextBeatTime = currentTime + this.beatInterval;
+        }
+      }
+
+      // 计算到下一个节拍的时间差
+      const timeToNextBeat = this.nextBeatTime - currentTime;
+      
+      // 动态调整检查间隔：离下一个节拍越近，检查越频繁
+      let checkInterval: number;
+      if (timeToNextBeat <= 10) {
+        checkInterval = 1; // 10ms内每1ms检查一次
+      } else if (timeToNextBeat <= 50) {
+        checkInterval = 5; // 50ms内每5ms检查一次
+      } else {
+        checkInterval = Math.min(20, timeToNextBeat / 4); // 其他情况适度检查
+      }
+
+      // 使用 setTimeout 继续循环，支持浏览器和 Node.js
+      this.timerId = setTimeout(timerLoop, checkInterval) as unknown as number;
+    };
+
+    timerLoop();
   }
 
   /**
@@ -315,19 +382,14 @@ export class BeatEmitter extends EventEmitter<BeatEmitterEvents> {
 
     this.options.bpm = bpm;
 
-    // 如果正在运行定时器模式，重新启动定时器
+    // 如果正在运行定时器模式，重新计算间隔和同步时间
     if (this.isRunning && this.options.mode === 'timer-based') {
-      if (this.timerId !== null) {
-        clearInterval(this.timerId);
-      }
+      // 更新节拍间隔
+      this.beatInterval = 60000 / bpm;
       
-      const interval = 60000 / bpm;
-      const setIntervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval;
-      this.timerId = setIntervalFn(() => {
-        if (this.isRunning) {
-          this.triggerBeat();
-        }
-      }, interval) as unknown as number;
+      // 重新同步下一个节拍时间，避免突然的时间跳跃
+      const currentTime = this.getHighResolutionTime();
+      this.nextBeatTime = currentTime + this.beatInterval;
 
       // 发射节奏更新事件
       const tempoData: TempoData = {
